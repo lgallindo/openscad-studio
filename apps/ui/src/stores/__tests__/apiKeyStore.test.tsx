@@ -12,6 +12,9 @@ import {
   storeApiKey,
   useAvailableProviders,
   useHasApiKey,
+  storeProviderBaseUrl,
+  getProviderBaseUrl,
+  clearProviderBaseUrl,
 } from '../apiKeyStore';
 
 function StoreHarness() {
@@ -56,21 +59,29 @@ describe('apiKeyStore', () => {
     expect(getProviderFromModel('claude-sonnet-4-5')).toBe('anthropic');
     expect(getProviderFromModel('gpt-5.4')).toBe('openai');
     expect(getProviderFromModel('chatgpt-4o-latest')).toBe('openai');
+    expect(getProviderFromModel('ollama:llama3.1')).toBe('ollama');
     expect(getProviderFromModel('unknown-model')).toBe('anthropic');
+  });
+
+  it('stores base URL for ollama', () => {
+    storeProviderBaseUrl('ollama', 'http://proxied/api');
+    expect(getProviderBaseUrl('ollama')).toBe('http://proxied/api');
+    clearProviderBaseUrl('ollama');
+    expect(getProviderBaseUrl('ollama')).toBeNull();
   });
 
   it('publishes provider availability through useSyncExternalStore hooks', () => {
     render(<StoreHarness />);
 
-    expect(screen.getByTestId('providers').textContent).toBe('');
-    expect(screen.getByTestId('has-key').textContent).toBe('false');
+    expect(screen.getByTestId('providers').textContent).toBe('ollama');
+    expect(screen.getByTestId('has-key').textContent).toBe('true');
 
     act(() => {
       storeApiKey('anthropic', 'a-key');
       storeApiKey('openai', 'o-key');
     });
 
-    expect(screen.getByTestId('providers').textContent).toBe('anthropic,openai');
+    expect(screen.getByTestId('providers').textContent).toBe('anthropic,openai,ollama');
     expect(screen.getByTestId('has-key').textContent).toBe('true');
 
     act(() => {
@@ -78,14 +89,14 @@ describe('apiKeyStore', () => {
       invalidateApiKeyStatus();
     });
 
-    expect(screen.getByTestId('providers').textContent).toBe('openai');
+    expect(screen.getByTestId('providers').textContent).toBe('openai,ollama');
     expect(screen.getByTestId('has-key').textContent).toBe('true');
 
     act(() => {
       clearApiKey('openai');
     });
 
-    expect(screen.getByTestId('providers').textContent).toBe('');
-    expect(screen.getByTestId('has-key').textContent).toBe('false');
+    expect(screen.getByTestId('providers').textContent).toBe('ollama');
+    expect(screen.getByTestId('has-key').textContent).toBe('true');
   });
 });

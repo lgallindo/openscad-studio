@@ -8,10 +8,12 @@ import { getPreferredDefaultModel } from '../utils/aiModels';
 const STORAGE_KEYS = {
   anthropic: 'openscad_studio_anthropic_api_key',
   openai: 'openscad_studio_openai_api_key',
+  ollama: 'openscad_studio_ollama_api_key',
+  ollama_base_url: 'openscad_studio_ollama_base_url',
   model: 'openscad_studio_ai_model',
 } as const;
 
-export type AiProvider = 'anthropic' | 'openai';
+export type AiProvider = 'anthropic' | 'openai' | 'ollama';
 
 interface ApiKeySnapshot {
   availableProviders: AiProvider[];
@@ -68,7 +70,30 @@ export function getAvailableProviders(): AiProvider[] {
   const providers: AiProvider[] = [];
   if (hasApiKeyForProvider('anthropic')) providers.push('anthropic');
   if (hasApiKeyForProvider('openai')) providers.push('openai');
+  if (hasApiKeyForProvider('ollama') || getProviderBaseUrl('ollama')) providers.push('ollama');
+  if (!providers.includes('ollama')) providers.push('ollama'); // Default local Ollama is always available
   return providers;
+}
+
+export function storeProviderBaseUrl(provider: AiProvider, url: string): void {
+  if (provider === 'ollama') {
+    localStorage.setItem(STORAGE_KEYS.ollama_base_url, url);
+    notify();
+  }
+}
+
+export function getProviderBaseUrl(provider: AiProvider): string | null {
+  if (provider === 'ollama') {
+    return localStorage.getItem(STORAGE_KEYS.ollama_base_url);
+  }
+  return null;
+}
+
+export function clearProviderBaseUrl(provider: AiProvider): void {
+  if (provider === 'ollama') {
+    localStorage.removeItem(STORAGE_KEYS.ollama_base_url);
+    notify();
+  }
 }
 
 // ============================================================================
@@ -88,6 +113,9 @@ export function setStoredModel(model: string): void {
 // ============================================================================
 
 export function getProviderFromModel(modelId: string): AiProvider {
+  if (modelId.startsWith('ollama:')) {
+    return 'ollama';
+  }
   if (modelId.startsWith('claude') || modelId.startsWith('anthropic')) {
     return 'anthropic';
   }

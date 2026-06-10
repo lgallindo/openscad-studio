@@ -1,4 +1,4 @@
-export type SupportedModelProvider = 'anthropic' | 'openai';
+export type SupportedModelProvider = 'anthropic' | 'openai' | 'ollama';
 
 export interface KnownModelDefinition {
   id: string;
@@ -9,6 +9,7 @@ export interface KnownModelDefinition {
 export const DEFAULT_MODEL_IDS: Record<SupportedModelProvider, string> = {
   anthropic: 'claude-sonnet-4-5',
   openai: 'gpt-5.4',
+  ollama: 'ollama:llama3.1',
 };
 
 export const KNOWN_DISPLAY_NAMES: Record<string, string> = {
@@ -27,6 +28,7 @@ export const KNOWN_DISPLAY_NAMES: Record<string, string> = {
   'o1-mini': 'o1 Mini',
   'o3-mini': 'o3 Mini',
   'gpt-4-turbo': 'GPT-4 Turbo',
+  'ollama:llama3.1': 'Llama 3.1 (Ollama)',
 };
 
 export const DEFAULT_MODEL_CATALOG: KnownModelDefinition[] = [
@@ -65,9 +67,14 @@ export const DEFAULT_MODEL_CATALOG: KnownModelDefinition[] = [
     display_name: KNOWN_DISPLAY_NAMES['gpt-4o'],
     provider: 'openai',
   },
+  {
+    id: DEFAULT_MODEL_IDS.ollama,
+    display_name: KNOWN_DISPLAY_NAMES[DEFAULT_MODEL_IDS.ollama],
+    provider: 'ollama',
+  },
 ];
 
-const PROVIDER_ORDER: SupportedModelProvider[] = ['anthropic', 'openai'];
+const PROVIDER_ORDER: SupportedModelProvider[] = ['anthropic', 'openai', 'ollama'];
 
 export function normalizeProviders(providers: readonly string[]): SupportedModelProvider[] {
   return PROVIDER_ORDER.filter((provider) => providers.includes(provider));

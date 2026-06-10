@@ -6,6 +6,9 @@ import {
   clearApiKey as clearApiKeyFromStorage,
   hasApiKeyForProvider,
   getAvailableProviders as getAvailableProvidersFromStore,
+  getProviderBaseUrl,
+  storeProviderBaseUrl,
+  clearProviderBaseUrl,
 } from '../../stores/apiKeyStore';
 import { useSettings } from '../../stores/settingsStore';
 import { getPlatform } from '../../platform';
@@ -29,10 +32,12 @@ interface AiSettingsProps {
 
 export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
   ({ isOpen, onCanSaveChange }, ref) => {
-    const [provider, setProvider] = useState<'anthropic' | 'openai'>('anthropic');
+    const [provider, setProvider] = useState<'anthropic' | 'openai' | 'ollama'>('anthropic');
     const [apiKey, setApiKey] = useState('');
+    const [baseUrl, setBaseUrl] = useState('');
     const [hasAnthropicKey, setHasAnthropicKey] = useState(false);
     const [hasOpenAIKey, setHasOpenAIKey] = useState(false);
+    const [hasOllamaKey, setHasOllamaKey] = useState(false);
     const [isLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [showKey, setShowKey] = useState(false);
@@ -43,6 +48,11 @@ export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
       const availableProviders = getAvailableProvidersFromStore();
       setHasAnthropicKey(availableProviders.includes('anthropic'));
       setHasOpenAIKey(availableProviders.includes('openai'));
+      setHasOllamaKey(hasApiKeyForProvider('ollama') || !!getProviderBaseUrl('ollama'));
+
+      if (provider === 'ollama') {
+        setBaseUrl(getProviderBaseUrl('ollama') || '');
+      }
 
       if (hasApiKeyForProvider(provider)) {
         setApiKey(MASKED_KEY);
@@ -58,11 +68,11 @@ export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
     }, [isOpen, loadKeys]);
 
     useEffect(() => {
-      onCanSaveChange(!isLoading && !!apiKey.trim() && !apiKey.startsWith('•'));
-    }, [apiKey, isLoading, onCanSaveChange]);
+      onCanSaveChange(!isLoading && (provider === 'ollama' ? true : !!apiKey.trim() && !apiKey.startsWith('•')));
+    }, [apiKey, baseUrl, provider, isLoading, onCanSaveChange]);
 
     const handleSave = useCallback(() => {
-      if (!apiKey.trim() || apiKey.startsWith('•')) {
+      if (provider !== 'ollama' && (!apiKey.trim() || apiKey.startsWith('•'))) {
         setError('Please enter a valid API key');
         return;
       }
@@ -70,37 +80,63 @@ export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
       setError(null);
 
       try {
-        storeApiKeyToStorage(provider, apiKey);
-        analytics.track('api key saved', { provider });
-        notifySuccess(`${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key saved`, {
-          toastId: `save-api-key-${provider}`,
-        });
-
-        if (provider === 'anthropic') {
-          setHasAnthropicKey(true);
-        } else {
-          setHasOpenAIKey(true);
+        let savedKey = false;
+        if (!apiKey.startsWith('•')) {
+          if (apiKey.trim() || provider === 'ollama') {
+            storeApiKeyToStorage(provider, apiKey);
+            savedKey = true;
+          }
+        }
+        
+        if (provider === 'ollama') {
+          if (baseUrl.trim()) {
+            storeProviderBaseUrl('ollama', baseUrl);
+          } else {
+            clearProviderBaseUrl('ollama');
+          }
+          setHasOllamaKey(!!apiKey.trim() || !!baseUrl.trim());
         }
 
-        setApiKey(MASKED_KEY);
-        setShowKey(false);
+        if (savedKey) {
+          analytics.track('api key saved', { provider });
+          notifySuccess(`${provider === 'anthropic' ? 'Anthropic' : provider === 'openai' ? 'OpenAI' : 'Ollama'} settings saved`, {
+            toastId: `save-api-key-${provider}`,
+          });
+
+          if (provider === 'anthropic') {
+            setHasAnthropicKey(true);
+          } else if (provider === 'openai') {
+            setHasOpenAIKey(true);
+          }
+
+          if (apiKey.trim()) {
+            setApiKey(MASKED_KEY);
+          }
+          setShowKey(false);
+        } else if (provider === 'ollama') {
+          analytics.track('api settings saved', { provider });
+          notifySuccess(`Ollama settings saved`, {
+            toastId: `save-api-key-${provider}`,
+          });
+        }
       } catch (err) {
         notifyError({
           operation: 'save-api-key',
           error: err,
-          fallbackMessage: 'Failed to save API key',
+          fallbackMessage: 'Failed to save settings',
           toastId: `save-api-key-error-${provider}`,
-          logLabel: '[AiSettings] Failed to save API key',
+          logLabel: '[AiSettings] Failed to save settings',
         });
       }
-    }, [apiKey, provider, analytics]);
+    }, [apiKey, baseUrl, provider, analytics]);
 
     useImperativeHandle(ref, () => ({ save: handleSave }), [handleSave]);
 
-    const handleClear = async (targetProvider: 'anthropic' | 'openai') => {
+    const handleClear = async (targetProvider: 'anthropic' | 'openai' | 'ollama') => {
+      const providerName = targetProvider === 'anthropic' ? 'Anthropic' : targetProvider === 'openai' ? 'OpenAI' : 'Ollama';
       const confirmed = await getPlatform().confirm(
-        `Are you sure you want to remove your ${targetProvider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API key?`,
-        { title: 'Remove API Key', kind: 'warning', okLabel: 'Remove', cancelLabel: 'Cancel' }
+        `Are you sure you want to remove your ${providerName} settings?`,
+        { title: 'Remove Settings', kind: 'warning', okLabel: 'Remove', cancelLabel: 'Cancel' }
       );
       if (!confirmed) return;
 
@@ -108,25 +144,31 @@ export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
 
       try {
         clearApiKeyFromStorage(targetProvider);
+        if (targetProvider === 'ollama') {
+          clearProviderBaseUrl('ollama');
+          setHasOllamaKey(false);
+        }
+        
         analytics.track('api key cleared', { provider: targetProvider });
-        notifySuccess('API key cleared', { toastId: `clear-api-key-${targetProvider}` });
+        notifySuccess(`${providerName} settings cleared`, { toastId: `clear-api-key-${targetProvider}` });
 
         if (targetProvider === 'anthropic') {
           setHasAnthropicKey(false);
-        } else {
+        } else if (targetProvider === 'openai') {
           setHasOpenAIKey(false);
         }
 
         if (provider === targetProvider) {
           setApiKey('');
+          if (provider === 'ollama') setBaseUrl('');
         }
       } catch (err) {
         notifyError({
           operation: 'clear-api-key',
           error: err,
-          fallbackMessage: 'Failed to clear API key',
+          fallbackMessage: 'Failed to clear settings',
           toastId: `clear-api-key-error-${targetProvider}`,
-          logLabel: '[AiSettings] Failed to clear API key',
+          logLabel: '[AiSettings] Failed to clear settings',
         });
       }
     };
@@ -199,6 +241,42 @@ export const AiSettings = forwardRef<AiSettingsHandle, AiSettingsProps>(
           onClear={() => {
             setProvider('openai');
             handleClear('openai');
+          }}
+        />
+
+        <ApiProviderCard
+          title="Ollama (Local & Proxied)"
+          description="Required only for non-default configurations (Bearer token is optional)."
+          placeholder="Bearer token (optional)"
+          isActive={provider === 'ollama'}
+          hasKey={hasOllamaKey}
+          apiKey={apiKey}
+          showKey={showKey}
+          isLoading={isLoading}
+          baseUrl={baseUrl}
+          onBaseUrlChange={(value) => {
+            setProvider('ollama');
+            setBaseUrl(value);
+          }}
+          baseUrlPlaceholder="Base URL (default: http://localhost:11434/api)"
+          onFocus={() => {
+            if (provider !== 'ollama') {
+              setProvider('ollama');
+              setApiKey('');
+              setBaseUrl(getProviderBaseUrl('ollama') || '');
+              setShowKey(false);
+            } else {
+              setProvider('ollama');
+            }
+          }}
+          onChange={(value) => {
+            setProvider('ollama');
+            setApiKey(value);
+          }}
+          onToggleShow={() => setShowKey((prev) => !prev)}
+          onClear={() => {
+            setProvider('ollama');
+            handleClear('ollama');
           }}
         />
 

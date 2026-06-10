@@ -1,11 +1,12 @@
 import { tool } from 'ai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createOllama } from 'ollama-ai-provider-v2';
 import { z } from 'zod';
 import { eventBus, historyService } from '../platform';
 import { getRenderService, type RenderOptions } from './renderService';
 import type { PreviewSceneStyle } from './previewSceneConfig';
-import type { AiProvider } from '../stores/apiKeyStore';
+import { getProviderBaseUrl, type AiProvider } from '../stores/apiKeyStore';
 import type { MeasurementUnit } from '../stores/settingsStore';
 import {
   buildProjectContextSummary,
@@ -147,6 +148,15 @@ export function createModel(provider: AiProvider, apiKey: string, modelId: strin
       headers: { 'anthropic-dangerous-direct-browser-access': 'true' },
     });
     return anthropic(modelId);
+  }
+  if (provider === 'ollama') {
+    const baseURL = getProviderBaseUrl('ollama') || 'http://localhost:11434/api';
+    const ollama = createOllama({
+      baseURL,
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
+    });
+    const actualModelId = modelId.startsWith('ollama:') ? modelId.slice(7) : modelId;
+    return ollama(actualModelId);
   }
   const openai = createOpenAI({ apiKey });
   return openai(modelId);

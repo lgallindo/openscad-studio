@@ -18,7 +18,7 @@ export interface ApiProviderCardProps {
   title: string;
   description: string;
   placeholder: string;
-  keyLink: { label: string; href: string };
+  keyLink?: { label: string; href: string };
   /** Whether this provider's input field is the active/focused one */
   isActive: boolean;
   hasKey: boolean;
@@ -30,6 +30,9 @@ export interface ApiProviderCardProps {
   onChange: (value: string) => void;
   onToggleShow: () => void;
   onClear: () => void;
+  baseUrl?: string;
+  onBaseUrlChange?: (value: string) => void;
+  baseUrlPlaceholder?: string;
 }
 
 export function ApiProviderCard({
@@ -46,6 +49,9 @@ export function ApiProviderCard({
   onChange,
   onToggleShow,
   onClear,
+  baseUrl,
+  onBaseUrlChange,
+  baseUrlPlaceholder,
 }: ApiProviderCardProps) {
   const statusStyle = {
     backgroundColor: hasKey ? 'rgba(133, 153, 0, 0.15)' : 'rgba(128, 128, 128, 0.1)',
@@ -107,18 +113,33 @@ export function ApiProviderCard({
             {TRASH_ICON}
           </IconButton>
         </div>
-        <Text variant="caption" color="tertiary">
-          Don't have a key?{' '}
-          <a
-            href={keyLink.href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-            style={{ color: 'var(--accent-primary)' }}
-          >
-            {keyLink.label}
-          </a>
-        </Text>
+        {onBaseUrlChange && (
+          <div className="flex items-center" style={{ gap: 'var(--space-control-gap)' }}>
+            <Input
+              type="text"
+              value={isActive ? (baseUrl ?? '') : ''}
+              onChange={(e) => onBaseUrlChange(e.target.value)}
+              onFocus={onFocus}
+              placeholder={baseUrlPlaceholder}
+              className="flex-1 font-mono text-sm ph-no-capture"
+              disabled={isLoading}
+            />
+          </div>
+        )}
+        {keyLink && (
+          <Text variant="caption" color="tertiary">
+            Don't have a key?{' '}
+            <a
+              href={keyLink.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              {keyLink.label}
+            </a>
+          </Text>
+        )}
       </SettingsCardSection>
     </SettingsCard>
   );

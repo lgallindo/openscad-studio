@@ -22,6 +22,7 @@ import { FALLBACK_PREVIEW_SCENE_STYLE } from '../previewSceneConfig';
 import type { AiToolCallbacks } from '../aiService';
 
 let buildTools: typeof import('../aiService').buildTools;
+let createModel: typeof import('../aiService').createModel;
 
 type ExecutableTool = {
   execute: (input: unknown) => Promise<unknown>;
@@ -73,7 +74,7 @@ function createCallbacks(overrides: Partial<AiToolCallbacks> = {}): AiToolCallba
 
 describe('buildTools', () => {
   beforeAll(async () => {
-    ({ buildTools } = await import('../aiService'));
+    ({ buildTools, createModel } = await import('../aiService'));
   });
 
   beforeEach(() => {
@@ -430,5 +431,25 @@ describe('buildTools', () => {
         useModelColors: true,
       })
     );
+  });
+
+  describe('createModel', () => {
+    it('chooses the Anthropic branch for anthropic provider', () => {
+      const model = createModel('anthropic', 'test-key', 'claude-3');
+      expect(model).toBeDefined();
+      expect(model.provider).toContain('anthropic');
+    });
+
+    it('chooses the OpenAI branch for openai provider', () => {
+      const model = createModel('openai', 'test-key', 'gpt-4');
+      expect(model).toBeDefined();
+      expect(model.provider).toContain('openai');
+    });
+
+    it('chooses the Ollama branch without breaking existing providers', () => {
+      const model = createModel('ollama', 'test-token', 'ollama:llama3.1');
+      expect(model).toBeDefined();
+      expect(model.provider).toContain('ollama');
+    });
   });
 });
